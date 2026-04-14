@@ -17,7 +17,7 @@ export default function Home() {
   }, []);
 
   const program = useMemo(() => {
-    if (!wallet.publicKey) return null;
+    if (!wallet.publicKey || !wallet.signTransaction) return null;
 
     const provider = new AnchorProvider(connection, wallet as any, {
       preflightCommitment: "processed",
@@ -32,11 +32,21 @@ export default function Home() {
     console.log("Wallet:", wallet.publicKey.toString());
     console.log("Program:", program);
 
-    const createBetIx = (idl as any).instructions.find(
-      (ix: any) => ix.name === "createBet"
+    console.log(
+      "all instruction names:",
+      (idl as any).instructions?.map((ix: any) => ix.name)
     );
 
-    console.log("createBet instruction:", createBetIx);
+    console.log("all instructions:", (idl as any).instructions);
+
+    console.log("program method keys:", Object.keys((program as any).methods));
+
+    console.log(
+      "createBet method exists:",
+      !!(program as any).methods?.createBet
+    );
+
+    console.log("Program methods:", (program as any).methods);
   }, [program, wallet]);
 
   const handleCreateBet = async () => {
@@ -46,8 +56,32 @@ export default function Home() {
     }
 
     try {
-      setStatus("Ready to call createBet, but we need the exact args/accounts.");
-      console.log("Program methods:", program.methods);
+      const createBetExists = !!(program as any).methods?.createBet;
+
+      if (!createBetExists) {
+        setStatus("createBet method not found on program.methods.");
+        return;
+      }
+
+      setStatus(
+        "createBet method found. Next step: add the exact args and accounts."
+      );
+
+      console.log("Ready to call:", (program as any).methods.createBet);
+
+      // Example shape once you know the exact Rust instruction signature:
+      //
+      // const tx = await (program as any).methods
+      //   .createBet(arg1, arg2, arg3)
+      //   .accounts({
+      //     creator: wallet.publicKey,
+      //     bet: betPda,
+      //     systemProgram: SystemProgram.programId,
+      //   })
+      //   .rpc();
+      //
+      // console.log("tx:", tx);
+      // setStatus(`Success: ${tx}`);
     } catch (error) {
       console.error(error);
       setStatus("Something went wrong. Check console.");
@@ -59,9 +93,7 @@ export default function Home() {
       <h1 className="text-2xl font-bold">Friend Bet</h1>
       <p className="mt-2">Connect wallet to start</p>
 
-      <div className="mt-4">
-        {mounted ? <WalletMultiButton /> : null}
-      </div>
+      <div className="mt-4">{mounted ? <WalletMultiButton /> : null}</div>
 
       <button
         onClick={handleCreateBet}
