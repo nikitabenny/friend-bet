@@ -6,7 +6,6 @@ declare_id!("BpwVDevvmYxhBAoXmFj9rVHZDsbDEsGxD8S1yKURapBE");
 #[program]
 pub mod friend_bet_program {
     use super::*;
-
     pub fn create_bet(
         ctx: Context<CreateBet>,
         bet_id: u64,
@@ -38,58 +37,71 @@ pub mod friend_bet_program {
     }
 
     pub fn deposit_creator(ctx: Context<DepositCreator>) -> Result<()> {
-        let bet = &mut ctx.accounts.bet;
+    let creator_key = ctx.accounts.creator.key();
+    let bet_account_info = ctx.accounts.bet.to_account_info();
+    let stake_lamports = ctx.accounts.bet.stake_lamports;
+    let creator_deposited = ctx.accounts.bet.creator_deposited;
+    let status = ctx.accounts.bet.status.clone();
+    let bet_creator = ctx.accounts.bet.creator;
 
-        require_keys_eq!(ctx.accounts.creator.key(), bet.creator, BetError::Unauthorized);
-        require!(!bet.creator_deposited, BetError::AlreadyDeposited);
-        require!(
-            bet.status == BetStatus::Open || bet.status == BetStatus::Pending,
-            BetError::InvalidStatus
-        );
+    require_keys_eq!(creator_key, bet_creator, BetError::Unauthorized);
+    require!(!creator_deposited, BetError::AlreadyDeposited);
+    require!(
+        status == BetStatus::Open || status == BetStatus::Pending,
+        BetError::InvalidStatus
+    );
 
-        let cpi_ctx = CpiContext::new(
-            ctx.accounts.system_program.to_account_info(),
-            system_program::Transfer {
-                from: ctx.accounts.creator.to_account_info(),
-                to: ctx.accounts.bet.to_account_info(),
-            },
-        );
+    let cpi_ctx = CpiContext::new(
+        ctx.accounts.system_program.to_account_info(),
+        system_program::Transfer {
+            from: ctx.accounts.creator.to_account_info(),
+            to: bet_account_info,
+        },
+    );
 
-        system_program::transfer(cpi_ctx, bet.stake_lamports)?;
+    system_program::transfer(cpi_ctx, stake_lamports)?;
 
-        bet.creator_deposited = true;
-        update_status(bet);
+    let bet = &mut ctx.accounts.bet;
+    bet.creator_deposited = true;
+    update_status(bet);
 
-        Ok(())
-    }
+    Ok(())
+}
 
-    pub fn accept_bet(ctx: Context<AcceptBet>) -> Result<()> {
-        let bet = &mut ctx.accounts.bet;
-        let now = Clock::get()?.unix_timestamp;
+pub fn accept_bet(ctx: Context<AcceptBet>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let opponent_key = ctx.accounts.opponent.key();
+    let bet_account_info = ctx.accounts.bet.to_account_info();
+    let stake_lamports = ctx.accounts.bet.stake_lamports;
+    let opponent_deposited = ctx.accounts.bet.opponent_deposited;
+    let status = ctx.accounts.bet.status.clone();
+    let deadline_ts = ctx.accounts.bet.deadline_ts;
+    let bet_opponent = ctx.accounts.bet.opponent;
 
-        require_keys_eq!(ctx.accounts.opponent.key(), bet.opponent, BetError::Unauthorized);
-        require!(now < bet.deadline_ts, BetError::DeadlinePassed);
-        require!(!bet.opponent_deposited, BetError::AlreadyDeposited);
-        require!(
-            bet.status == BetStatus::Open || bet.status == BetStatus::Pending,
-            BetError::InvalidStatus
-        );
+    require_keys_eq!(opponent_key, bet_opponent, BetError::Unauthorized);
+    require!(now < deadline_ts, BetError::DeadlinePassed);
+    require!(!opponent_deposited, BetError::AlreadyDeposited);
+    require!(
+        status == BetStatus::Open || status == BetStatus::Pending,
+        BetError::InvalidStatus
+    );
 
-        let cpi_ctx = CpiContext::new(
-            ctx.accounts.system_program.to_account_info(),
-            system_program::Transfer {
-                from: ctx.accounts.opponent.to_account_info(),
-                to: ctx.accounts.bet.to_account_info(),
-            },
-        );
+    let cpi_ctx = CpiContext::new(
+        ctx.accounts.system_program.to_account_info(),
+        system_program::Transfer {
+            from: ctx.accounts.opponent.to_account_info(),
+            to: bet_account_info,
+        },
+    );
 
-        system_program::transfer(cpi_ctx, bet.stake_lamports)?;
+    system_program::transfer(cpi_ctx, stake_lamports)?;
 
-        bet.opponent_deposited = true;
-        update_status(bet);
+    let bet = &mut ctx.accounts.bet;
+    bet.opponent_deposited = true;
+    update_status(bet);
 
-        Ok(())
-    }
+    Ok(())
+}
 
     pub fn resolve_bet(ctx: Context<ResolveBet>, creator_wins: bool) -> Result<()> {
         let bet = &mut ctx.accounts.bet;
