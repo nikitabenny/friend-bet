@@ -5,7 +5,7 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
+[programs.devnet]
 program = "BpwVDevvmYxhBAoXmFj9rVHZDsbDEsGxD8S1yKURapBE"
 
 [registry]
